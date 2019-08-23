@@ -1,0 +1,72 @@
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.layers import LSTM
+from keras.optimizers import SGD
+from keras.utils import np_utils
+import numpy as np
+
+# Predicting animal type based on various features
+xy = np.loadtxt('lotto_579.csv', delimiter=',', dtype=np.float32)
+x_data = xy[:, [0]]-579
+y_data = xy[:, 1:]
+
+nb_classes = 300
+x_one_hot = np_utils.to_categorical(x_data, nb_classes)
+
+print(x_one_hot.shape)
+print(x_one_hot)
+
+#x_data = np.array([[1], [2], [3], [4], [5]], dtype=np.float32)
+#y_data = np.array([[2,4,30,32,33,43], [2,6,12,26,30,34], [21,25,30,32,40,42], [2,6,20,27,37,39], [12,17,28,41,43,44]], dtype=np.float32)
+
+#print(x_data.shape, y_data.shape)
+#print(y_data)
+
+nb_dense=128
+model = Sequential()
+#################################################################
+model.add(Dense(nb_dense, input_dim=nb_classes, activation='relu'))
+model.add(Dense(nb_dense, input_dim=nb_dense, activation='relu'))
+model.add(Dense(6))
+model.compile(loss='mse', optimizer='rmsprop', metrics=['mae'])
+#################################################################
+#model.add(LSTM(6, input_dim=nb_classes, return_sequences=False))
+## model.add(Dense(1))
+#model.add(Activation("linear"))
+#model.compile(loss='mean_squared_error', optimizer='adam')
+#################################################################
+model.summary()
+model.fit(x_one_hot, y_data, batch_size=5, epochs=100)
+
+# Let's see if we can predict
+x_test = np_utils.to_categorical([[0]], nb_classes)
+pred = model.predict(x_test)
+print('Orginal value 1 : ' + str(y_data[0]))
+print( pred)
+
+x_test = np_utils.to_categorical([[9]], nb_classes)
+pred = model.predict(x_test)
+print('Orginal value 10 : ' + str(y_data[9]))
+print(pred)
+
+print('=====================================================================')
+
+x_test = np_utils.to_categorical([[295]], nb_classes)
+pred = model.predict(x_test)
+print( pred)
+
+x_test = np_utils.to_categorical([[296]], nb_classes)
+pred = model.predict(x_test)
+print( pred)
+
+x_test = np_utils.to_categorical([[297]], nb_classes)
+pred = model.predict(x_test)
+print( pred)
+
+x_test = np_utils.to_categorical([[298]], nb_classes)
+pred = model.predict(x_test)
+print( pred)
+
+x_test = np_utils.to_categorical([[299]], nb_classes)
+pred = model.predict(x_test)
+print( pred)
