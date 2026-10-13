@@ -1,0 +1,125 @@
+"""Recommend Lotto 6/45 numbers for the draw after the latest row in lotto.csv."""
+
+import numpy as np
+import tensorflow as tf
+from keras.layers import Dense
+from keras.models import Sequential
+
+WINDOW = 10
+EPOCHS = 40
+SEED = 1246
+N_SETS = 5
+
+
+def load_draws(path):
+    rows = []
+    with open(path, encoding="utf-8") as handle:
+        for line in handle:
+            parts = [int(piece) for piece in line.strip().split(",") if piece]
+            if len(parts) < 7:
+                continue
+            rows.append((parts[0], parts[1:7]))
+    rows.sort()
+    return rows
+
+
+def features(history):
+    counts = np.zeros(45, dtype=np.float32)
+    gap = np.full(45, WINDOW, dtype=np.float32)
+    for age, nums in enumerate(reversed(history)):
+        for number in nums:
+            index = number - 1
+            counts[index] += 1.0
+            if gap[index] == WINDOW:
+                gap[index] = age
+    return np.concatenate([counts / WINDOW, gap / WINDOW])
+
+
+def balanced(ticket, sum_low, sum_high):
+    odds = sum(number % 2 for number in ticket)
+    total = sum(ticket)
+    return 2 <= odds <= 4 and sum_low <= total <= sum_high
+
+
+def main():
+    draws = load_draws("lotto.csv")
+    numbers = [nums for _, nums in draws]
+    next_draw = draws[-1][0] + 1
+    sums = np.array([sum(nums) for nums in numbers])
+    sum_low, sum_high = np.percentile(sums, [10, 90])
+
+    samples = []
+    labels = []
+    for index in range(WINDOW, len(numbers)):
+        samples.append(features(numbers[index - WINDOW:index]))
+        label = np.zeros(45, dtype=np.float32)
+        for number in numbers[index]:
+            label[number - 1] = 1.0
+        labels.append(label)
+    samples = np.asarray(samples)
+    labels = np.asarray(labels)
+
+    tf.keras.utils.set_random_seed(SEED)
+    model = Sequential()
+    model.add(Dense(64, input_dim=samples.shape[1], activation="relu"))
+    model.add(Dense(45, activation="sigmoid"))
+    model.compile(loss="binary_crossentropy", optimizer="adam")
+    model.fit(samples, labels, epochs=EPOCHS, batch_size=32, verbose=0)
+
+    holdout = 50
+    train_x, test_x = samples[:-holdout], samples[-holdout:]
+    train_y, test_y = labels[:-holdout], labels[-holdout:]
+    check = Sequential()
+    check.add(Dense(64, input_dim=samples.shape[1], activation="relu"))
+    check.add(Dense(45, activation="sigmoid"))
+    check.compile(loss="binary_crossentropy", optimizer="adam")
+    check.fit(train_x, train_y, epochs=EPOCHS, batch_size=32, verbose=0)
+    held_probs = check.predict(test_x, verbose=0)
+    hits = []
+    for prob, truth in zip(held_probs, test_y):
+        predicted = set(np.argsort(-prob)[:6] + 1)
+        actual = set(np.flatnonzero(truth) + 1)
+        hits.append(len(predicted & actual))
+    mean_hits = float(np.mean(hits))
+
+    probs = model.predict(features(numbers[-WINDOW:])[None, :], verbose=0)[0]
+    ranked = np.argsort(-probs)
+    primary = tuple(sorted(int(index + 1) for index in ranked[:6]))
+
+    weights = np.clip(probs, 1e-6, None)
+    weights = weights / weights.sum()
+    rng = np.random.default_rng(SEED)
+    sets = [primary]
+    attempts = 0
+    while len(sets) < N_SETS and attempts < 5000:
+        attempts += 1
+        picked = rng.choice(np.arange(1, 46), size=6, replace=False, p=weights)
+        ticket = tuple(sorted(int(number) for number in picked))
+        if ticket in sets or not balanced(ticket, sum_low, sum_high):
+            continue
+        sets.append(ticket)
+    while len(sets) < N_SETS:
+        picked = rng.choice(np.arange(1, 46), size=6, replace=False, p=weights)
+        ticket = tuple(sorted(int(number) for number in picked))
+        if ticket not in sets:
+            sets.append(ticket)
+
+    print(f"next_draw {next_draw}")
+    print(f"trained_draws {draws[0][0]}-{draws[-1][0]} samples {len(samples)}")
+    print(f"holdout_top6_hits {mean_hits:.2f} chance {6 * 6 / 45:.2f}")
+    print("probabilities")
+    for index in ranked:
+        print(f"{index + 1:2d} {probs[index]:.4f}")
+    print("sets")
+    for ticket in sets:
+        print(",".join(str(number) for number in ticket))
+    for ticket in sets:
+        if len(ticket) != 6 or len(set(ticket)) != 6:
+            raise SystemExit(f"invalid ticket {ticket}")
+        if any(number < 1 or number > 45 for number in ticket):
+            raise SystemExit(f"out of range {ticket}")
+    print("recommend-ok")
+
+
+if __name__ == "__main__":
+    main()
