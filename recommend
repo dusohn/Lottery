@@ -1,6 +1,7 @@
 """Recommend Lotto 6/45 numbers for the draw after the latest row in lotto.csv."""
 
 import numpy as np
+import tensorflow as tf
 from keras.layers import Dense
 from keras.models import Sequential
 
@@ -58,7 +59,7 @@ def main():
     samples = np.asarray(samples)
     labels = np.asarray(labels)
 
-    np.random.seed(SEED)
+    tf.keras.utils.set_random_seed(SEED)
     model = Sequential()
     model.add(Dense(64, input_dim=samples.shape[1], activation="relu"))
     model.add(Dense(45, activation="sigmoid"))
