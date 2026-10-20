@@ -8,7 +8,7 @@ from keras.models import Sequential
 WINDOW = 10
 EPOCHS = 40
 SEED = 1246
-N_SETS = 5
+N_SETS = 2
 
 
 def load_draws(path):
